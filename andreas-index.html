@@ -632,6 +632,69 @@
     .memory-score div { padding: 10px; border-radius: 5px; background: rgba(255,255,255,.1); font-size: 13px; font-weight: 900; }
     .memory-score strong { display: block; margin-top: 3px; color: var(--yellow); font-size: 24px; }
 
+    .wall-shell { display: grid; gap: 22px; }
+
+    .wall-form {
+      display: grid;
+      padding: 20px;
+      border: 3px solid #fff;
+      border-radius: 8px;
+      background: rgba(255,255,255,.85);
+      box-shadow: var(--shadow);
+    }
+
+    .wall-fields { display: grid; grid-template-columns: 220px 1fr; gap: 10px; }
+
+    .wall-input, .wall-textarea {
+      padding: 12px 14px;
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .wall-textarea { grid-column: 1 / -1; min-height: 90px; resize: vertical; }
+
+    .wall-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; grid-column: 1 / -1; }
+
+    .wall-hint { font-size: 12px; font-weight: 800; opacity: .65; }
+
+    .wall-list { display: grid; gap: 14px; }
+
+    .wall-post {
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 2px solid rgba(7,20,32,.14);
+      border-radius: 8px;
+      background: rgba(255,255,255,.85);
+      box-shadow: 4px 4px 0 rgba(7,20,32,.08);
+    }
+
+    .wall-avatar {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 900;
+      box-shadow: 3px 3px 0 var(--pink), -2px -2px 0 var(--cyan);
+    }
+
+    .wall-post-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .wall-post-name { font-weight: 900; }
+    .wall-post-time { font-size: 12px; font-weight: 700; opacity: .55; }
+    .wall-post-text { margin: 0; font-weight: 700; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+    .wall-empty { padding: 20px; text-align: center; font-weight: 800; opacity: .65; }
+    .wall-status { min-height: 18px; font-size: 12px; font-weight: 800; opacity: .7; }
+
     @media (max-width: 850px) {
       .hero { grid-template-columns: 1fr; padding-top: 28px; }
       .avatar-stage { min-height: 370px; }
@@ -673,6 +736,7 @@
       .memory-face { border-width: 2px; }
       .memory-side { display: block; }
       .memory-score { grid-template-columns: repeat(2, 1fr); margin: 16px 0; }
+      .wall-fields { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -697,6 +761,7 @@
         </a>
         <nav aria-label="Μενού">
           <a href="#games">Παιχνίδια</a>
+          <a href="#wall">Τοίχος</a>
           <a href="#profile">Profile</a>
           <a class="nav-follow" href="https://www.tiktok.com/@andreasoffuciale?">♪ Follow me</a>
         </nav>
@@ -761,6 +826,29 @@
             <p>♪ TikTok mode ON. Παίξε πρώτα, μετά Follow me.</p>
             <div class="ribbon-notes" aria-hidden="true"><span class="ribbon-note">♪</span><span class="ribbon-note">♪</span><span class="ribbon-note">♪</span><span class="ribbon-note">♪</span></div>
             <a class="follow-button" href="https://www.tiktok.com/@andreasoffuciale?">Follow me</a>
+          </div>
+        </section>
+
+        <section class="section" id="wall" aria-labelledby="wall-title">
+          <div class="section-heading">
+            <h2 id="wall-title">Ο Τοίχος</h2>
+            <p>Γράψε ό,τι θέλεις. Βάλε το όνομά σου ή μείνε ανώνυμος. Ο τοίχος ενημερώνεται για όλους.</p>
+          </div>
+          <div class="wall-shell">
+            <form class="wall-form" id="wall-form">
+              <div class="wall-fields">
+                <input class="wall-input" type="text" id="wall-name" maxlength="30" placeholder="Το όνομά σου (προαιρετικό)" />
+                <textarea class="wall-textarea" id="wall-text" maxlength="500" placeholder="Γράψε το μήνυμά σου..." required></textarea>
+                <div class="wall-actions">
+                  <span class="wall-hint" id="wall-count">0 / 500</span>
+                  <button class="follow-button" type="submit">♪ Post</button>
+                </div>
+              </div>
+            </form>
+            <p class="wall-status" id="wall-status"></p>
+            <div class="wall-list" id="wall-list">
+              <p class="wall-empty">Φόρτωση τοίχου...</p>
+            </div>
           </div>
         </section>
 
@@ -1276,6 +1364,146 @@
       if (gameId === "pacman") stopPacman();
       if (gameId === "rush") stopRush();
     }
+
+    /* Ο Τοίχος: κοινόχρηστο wall, χωρίς login, ορατό σε όλους. */
+    const WALL_API = "https://api.npoint.io/REPLACE_ME"; // βάλε εδώ το δικό σου URL από το npoint.io
+
+    const wallForm = document.getElementById("wall-form");
+    const wallNameInput = document.getElementById("wall-name");
+    const wallTextInput = document.getElementById("wall-text");
+    const wallCount = document.getElementById("wall-count");
+    const wallList = document.getElementById("wall-list");
+    const wallStatus = document.getElementById("wall-status");
+    let wallCache = [];
+    let wallSetupWarned = false;
+
+    const savedWallName = localStorage.getItem("wallName");
+    if (savedWallName) wallNameInput.value = savedWallName;
+
+    wallTextInput.addEventListener("input", () => {
+      wallCount.textContent = `${wallTextInput.value.length} / 500`;
+    });
+
+    function wallNeedsSetup() {
+      return WALL_API.includes("REPLACE_ME");
+    }
+
+    function formatWallTime(ts) {
+      const diffMins = Math.floor((Date.now() - ts) / 60000);
+      if (diffMins < 1) return "τώρα";
+      if (diffMins < 60) return `${diffMins} λεπτά πριν`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours} ώρες πριν`;
+      return `${Math.floor(diffHours / 24)} μέρες πριν`;
+    }
+
+    function renderWall(posts) {
+      wallCache = Array.isArray(posts) ? posts : [];
+      wallList.innerHTML = "";
+      if (!wallCache.length) {
+        const empty = document.createElement("p");
+        empty.className = "wall-empty";
+        empty.textContent = "Κανένα μήνυμα ακόμα. Γράψε το πρώτο.";
+        wallList.appendChild(empty);
+        return;
+      }
+      [...wallCache].sort((a, b) => b.time - a.time).forEach((post) => {
+        const name = (post.name || "").trim();
+        const item = document.createElement("div");
+        item.className = "wall-post";
+
+        const avatar = document.createElement("div");
+        avatar.className = "wall-avatar";
+        avatar.textContent = name ? name[0].toUpperCase() : "?";
+
+        const body = document.createElement("div");
+        const head = document.createElement("div");
+        head.className = "wall-post-head";
+
+        const nameEl = document.createElement("span");
+        nameEl.className = "wall-post-name";
+        nameEl.textContent = name || "Ανώνυμος";
+
+        const timeEl = document.createElement("span");
+        timeEl.className = "wall-post-time";
+        timeEl.textContent = formatWallTime(post.time || Date.now());
+
+        head.appendChild(nameEl);
+        head.appendChild(timeEl);
+
+        const textEl = document.createElement("p");
+        textEl.className = "wall-post-text";
+        textEl.textContent = post.text || "";
+
+        body.appendChild(head);
+        body.appendChild(textEl);
+        item.appendChild(avatar);
+        item.appendChild(body);
+        wallList.appendChild(item);
+      });
+    }
+
+    async function loadWallPosts() {
+      if (wallNeedsSetup()) {
+        if (!wallSetupWarned) {
+          wallStatus.textContent = "Ο τοίχος χρειάζεται ένα γρήγορο setup στο npoint.io πριν λειτουργήσει.";
+          wallSetupWarned = true;
+        }
+        wallList.innerHTML = "";
+        const notice = document.createElement("p");
+        notice.className = "wall-empty";
+        notice.textContent = "Ο τοίχος δεν είναι έτοιμος ακόμα.";
+        wallList.appendChild(notice);
+        return;
+      }
+      try {
+        const res = await fetch(WALL_API, { cache: "no-store" });
+        if (!res.ok) throw new Error("fetch failed");
+        const data = await res.json();
+        renderWall(data);
+        wallStatus.textContent = "";
+      } catch (err) {
+        wallStatus.textContent = "Ο τοίχος δεν φορτώνει τώρα. Δοκίμασε ξανά σε λίγο.";
+      }
+    }
+
+    wallForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (wallNeedsSetup()) {
+        wallStatus.textContent = "Ο τοίχος χρειάζεται ένα γρήγορο setup στο npoint.io πριν λειτουργήσει.";
+        return;
+      }
+      const text = wallTextInput.value.trim();
+      if (!text) return;
+      const name = wallNameInput.value.trim().slice(0, 30);
+      localStorage.setItem("wallName", name);
+      const submitButton = wallForm.querySelector("button[type=submit]");
+      submitButton.disabled = true;
+      wallStatus.textContent = "Αποστολή...";
+      try {
+        const freshRes = await fetch(WALL_API, { cache: "no-store" });
+        const freshData = freshRes.ok ? await freshRes.json() : wallCache;
+        const newPost = { name, text: text.slice(0, 500), time: Date.now() };
+        const updated = [...(Array.isArray(freshData) ? freshData : []), newPost];
+        const res = await fetch(WALL_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updated)
+        });
+        if (!res.ok) throw new Error("post failed");
+        wallTextInput.value = "";
+        wallCount.textContent = "0 / 500";
+        renderWall(updated);
+        wallStatus.textContent = "";
+      } catch (err) {
+        wallStatus.textContent = "Το μήνυμα δεν εστάλη. Δοκίμασε ξανά.";
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+
+    loadWallPosts();
+    setInterval(loadWallPosts, 6000);
 
     syncRoute();
   </script>
